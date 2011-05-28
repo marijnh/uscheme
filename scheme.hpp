@@ -27,6 +27,7 @@
 #define SCHEME_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -51,20 +52,20 @@ namespace uls{
 // it is a pointer, etc.
   
 // 1 bit patterns
-const size_t int_pattern = 1;
+const uintptr_t int_pattern = 1;
 // 2 bit patterns
-const size_t compound_pattern = 0;
-const size_t fourbit_pattern = 2;
+const uintptr_t compound_pattern = 0;
+const uintptr_t fourbit_pattern = 2;
 // 4 bit patterns
-const size_t symbol_pattern = 2;
-const size_t temp_name_pattern = 6;
-const size_t instruction_pattern = 10;
-const size_t sixbit_pattern = 14;
+const uintptr_t symbol_pattern = 2;
+const uintptr_t temp_name_pattern = 6;
+const uintptr_t instruction_pattern = 10;
+const uintptr_t sixbit_pattern = 14;
 // 6-bit patterns
-const size_t char_pattern = 14;
-const size_t instuction_pattern = 30;
-const size_t form_pattern = 46;
-const size_t special_pattern = 62;
+const uintptr_t char_pattern = 14;
+const uintptr_t instuction_pattern = 30;
+const uintptr_t form_pattern = 46;
+const uintptr_t special_pattern = 62;
 
 // Some cells have their values defined right here in the enum. These
 // are the cells with special values and the fixnums 0 and 1 (it is
@@ -76,38 +77,35 @@ const size_t special_pattern = 62;
 // primitives should never return them. Having invalid cells running
 // around in user code will lead to weird results (most likely strange
 // errors about a variable being used before it is defined).
-enum Cell{
-  false_cell = ((1 << 6) | special_pattern),
-  true_cell = ((2 << 6) | special_pattern),
-  null_cell = ((3 << 6) | special_pattern),
-  void_cell = ((4 << 6) | special_pattern),
-  invalid_cell = ((5 << 6) | special_pattern),
-  eof_cell = ((256 << 6) | char_pattern),
-  zero_cell = int_pattern,
-  one_cell = (1 << 1) | int_pattern
-};
+typedef uintptr_t Cell;
+const Cell false_cell = ((1 << 6) | special_pattern);
+const Cell true_cell = ((2 << 6) | special_pattern);
+const Cell null_cell = ((3 << 6) | special_pattern);
+const Cell void_cell = ((4 << 6) | special_pattern);
+const Cell invalid_cell = ((5 << 6) | special_pattern);
+const Cell eof_cell = ((256 << 6) | char_pattern);
+const Cell zero_cell = int_pattern;
+const Cell one_cell = (1 << 1) | int_pattern;
 
 // Some helper functions for encoding and extracting values with the
 // top 4 or 6 bits used as type identification.
-inline size_t Extract_Fourbit(Cell cell){
-  return reinterpret_cast<size_t&>(cell) >> 4;
+inline uintptr_t Extract_Fourbit(Cell cell){
+  return cell >> 4;
 }
-inline Cell Encode_Fourbit(size_t value, size_t pattern){
-  size_t temp = (value << 4) | pattern;
-  return reinterpret_cast<Cell&>(temp);
+inline Cell Encode_Fourbit(uintptr_t value, uintptr_t pattern){
+  return (value << 4) | pattern;
 }
-inline bool Match_Fourbit(Cell cell, size_t pattern){
-  return (reinterpret_cast<size_t&>(cell) & 15) == pattern;
+inline bool Match_Fourbit(Cell cell, uintptr_t pattern){
+  return (cell & 15) == pattern;
 }
-inline size_t Extract_Sixbit(Cell cell){
-  return reinterpret_cast<size_t&>(cell) >> 6;
+inline uintptr_t Extract_Sixbit(Cell cell){
+  return cell >> 6;
 }
-inline Cell Encode_Sixbit(size_t value, size_t pattern){
-  size_t temp = (value << 6) | pattern;
-  return reinterpret_cast<Cell&>(temp);
+inline Cell Encode_Sixbit(uintptr_t value, uintptr_t pattern){
+  return (value << 6) | pattern;
 }
-inline bool Match_Sixbit(Cell cell, size_t pattern){
-  return (reinterpret_cast<size_t&>(cell) & 63) == pattern;
+inline bool Match_Sixbit(Cell cell, uintptr_t pattern){
+  return (cell & 63) == pattern;
 }
 
 // ,SPECIALS
@@ -195,7 +193,7 @@ struct Cell_Info
 
 inline bool Is_Compound(Cell cell)
 {
-  return (reinterpret_cast<size_t&>(cell) & 3) == 0;
+  return (reinterpret_cast<uintptr_t&>(cell) & 3) == 0;
 }
 
 inline Cell_Info& Compound_Info(Cell cell)
@@ -413,12 +411,12 @@ extern Interpreter* ip_;
 // Allocate_Cell to specify what kind of data you want to store in the
 // cell (and then get access to that with Extract<Data> after it has
 // been allocated).
-inline Cell Allocate(size_t size, Cell_Type type, Pointer_Mask mask = max_short)
+inline Cell Allocate(size_t size, Cell_Type type, Pointer_Mask mask = max_byte)
 {
   return mp_->Allocate(size, type, mask);
 }
 template <class Data>
-inline Cell Allocate_Cell(Cell_Type type, Pointer_Mask mask = max_short)
+inline Cell Allocate_Cell(Cell_Type type, Pointer_Mask mask = max_byte)
 {
   return Allocate(sizeof(Data), type, mask);
 }
@@ -426,22 +424,21 @@ inline Cell Allocate_Cell(Cell_Type type, Pointer_Mask mask = max_short)
 // ,FIXNUM
 
 // Fixnums range from -max_fixnum to +max_fixnum
-const size_t max_fixnum = (max_int >> 2);
+const uintptr_t max_fixnum = (max_int >> 2);
 
 inline bool Is_Fixnum(Cell cell)
 {
-  return (reinterpret_cast<size_t&>(cell) & 1) == int_pattern;
+  return (cell & 1) == int_pattern;
 }
 inline Cell Make_Fixnum(int value)
 {
   S_ASSERT(std::abs(value) < max_fixnum);
-  size_t temp = (value << 1) | int_pattern;
-  return reinterpret_cast<Cell&>(temp);
+  return (value << 1) | int_pattern;
 }
 inline int Fixnum_Value(Cell cell)
 {
   S_ASSERT(Is_Fixnum(cell));
-  size_t bits = reinterpret_cast<size_t&>(cell) >> 1;
+  uintptr_t bits = cell >> 1;
   // This is needed to restore the sign, it basically takes the
   // almost-most-significant bit and copies it to the most significant
   // bit (which got trampled by the shifting)
@@ -470,7 +467,7 @@ inline bool Is_Integer(Cell cell)
 }
 inline Cell Make_Integer(int64 value)
 {
-  int64 abs_value = (value < 0) ? -value : value;
+  uint64 abs_value = (value < 0) ? -value : value;
   if (abs_value >= max_fixnum)
     return Make_Bignum(value);
   else
@@ -768,7 +765,7 @@ inline bool Is_Vector(Cell cell)
 // Some different ways of constructing vectors
 Cell Make_Vector(size_t size, Cell fill = null_cell);
 Cell Make_Vector(const MStack& stack);
-Cell Make_Vector(Cell list);
+Cell Make_Vector_From_List(Cell list);
 
 struct Vector_Data
 {

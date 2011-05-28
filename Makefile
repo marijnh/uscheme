@@ -41,6 +41,8 @@ CCPARAM = -Wall -O1
 MACROS += NDEBUG
 endif
 
+CCPARAM += -std=c++0x
+
 INCPATH = .
 LIBPATH = 
 C++ = g++

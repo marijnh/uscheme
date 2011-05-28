@@ -39,6 +39,7 @@ typedef unsigned long long uint64;
 const size_t byte_size = 8;
 const unsigned char max_byte = 0xFF;
 const unsigned short max_short = 0xFFFF;
+// TODO 64-bit fixnums
 const size_t max_int = 0xFFFFFFFF;
 
 }

@@ -62,9 +62,9 @@ inline Cell& Reference_To_Moved(Cell cell)
 }
 
 // Used to convert cell sizes from 8-bit to 32-bit units
-inline size_t Fit_To_Four(size_t num)
+inline uintptr_t Fit_To_Four(uintptr_t num)
 {
-  size_t retval = (num >> 2);
+  uintptr_t retval = (num >> 2);
   if ((num & 3) != 0)
     ++retval;
   return retval;
@@ -117,7 +117,7 @@ Cell Mem_Manager::Allocate(size_t size, Cell_Type type, Pointer_Mask mask)
   _block_position += size;
 
   // Fill in the Cell_Info struct for the cell.
-  Cell cell = reinterpret_cast<Cell&>(new_cell);
+  Cell cell = (Cell)new_cell;
   Cell_Info& info = Compound_Info(cell);
   info.size = size;
   info.mask = mask;
@@ -195,22 +195,20 @@ void Mem_Manager::Move_Cell(Cell* cell)
 {
   Cell_Info& info = Compound_Info(*cell);
   
-  size_t* old_location = reinterpret_cast<size_t*>(*cell);
+  size_t* old_location = reinterpret_cast<uintptr_t*>(*cell);
   size_t* new_location = _live_block + _block_position;
   _block_position += info.size;
 
   std::copy(old_location, old_location + info.size, new_location);
 
   info.type = moved_cell_type;
-  info.data[0] = reinterpret_cast<Cell&>(new_location);
-
-  *cell = reinterpret_cast<Cell&>(new_location);
+  *cell = info.data[0] = (Cell)new_location;
 }
 
 // Check whether a cell is in a block
 bool Mem_Manager::Is_In_Block(Cell cell, size_t* block) const
 {
-  size_t* b_cell = reinterpret_cast<size_t*>(cell);
+  size_t* b_cell = (size_t*)cell;
   return b_cell >= block && b_cell < block + _block_size;
 }
 
@@ -236,7 +234,7 @@ void Mem_Manager::Call_Destructors(size_t old_block_position)
 
   while (point < end)
   {
-    Cell current = reinterpret_cast<Cell&>(point);
+    Cell current = (Cell)point;
     Cell_Info& info = Compound_Info(current);
     if (info.type != moved_cell_type)
     {
@@ -269,7 +267,7 @@ inline bool Is_Instruction(Cell cell){
   return Match_Sixbit(cell, instruction_pattern);
 }
 inline Cell Make_Instruction(Instruction ins){
-  return Encode_Sixbit(reinterpret_cast<size_t&>(ins), instruction_pattern);
+  return Encode_Sixbit(reinterpret_cast<uintptr_t&>(ins), instruction_pattern);
 }
 
 inline Instruction Instruction_Value(Cell cell){
@@ -568,7 +566,8 @@ Cell Integer_Modulo(Cell one, Cell two)
 void Write_Rational(Cell cell, std::ostream& str, bool display)
 {
   S_ASSERT(Is_Rational(cell));
-  str << Rational_Numerator(cell) << '/' << Rational_Denominator(cell);
+  str << (unsigned)Rational_Numerator(cell) << '/'
+      << (unsigned)Rational_Denominator(cell);
 }
 
 Cell Make_Rational(const MCell& numerator, const MCell& denominator)
@@ -1037,7 +1036,7 @@ Cell Make_Vector(const MStack& stack)
   return new_vector;
 }
 
-Cell Make_Vector(Cell list)
+Cell Make_Vector_From_List(Cell list)
 {
   S_ASSERT(Is_Pair(list));
   size_t size = List_Length(list);
@@ -1434,7 +1433,7 @@ inline Cell Primitive_Name(Cell cell)
 }
 void Write_Primitive(Cell cell, std::ostream& str, bool display)
 {
-  str << "#<primitive:" << Primitive_Name(cell) << '>';
+  str << "#<primitive:" << (unsigned)Primitive_Name(cell) << '>';
 }
 
 // ,SPECIAL FORM
@@ -1517,7 +1516,7 @@ inline Cell Renamed_Symbol_Macro(Cell cell)
 
 void Write_Renamed_Symbol(Cell cell, std::ostream& str, bool display)
 {
-  str << "#<renamed:" << Renamed_Symbol_Old_Name(cell) << '>';
+  str << "#<renamed:" << (unsigned)Renamed_Symbol_Old_Name(cell) << '>';
 }
 
 Cell Extract_Symbol(Cell identifier)
@@ -2746,7 +2745,7 @@ void Write(Cell cell, std::ostream& str, bool display)
     bool normal_symbol = false;
     std::string name = Symbol_Name(cell);
     // Check whether the symbol contains any weird characters.
-    if (name.size() > 0 && Is_Symbol_Start(name[0]) || (Is_Ambiguous_Char(name[0]) && name.size() == 1)
+    if ((name.size() > 0 && Is_Symbol_Start(name[0])) || (Is_Ambiguous_Char(name[0]) && name.size() == 1)
         || name == "..."){
       for (std::string::iterator i = name.begin() + 1; i != name.end(); ++i){
         if (!Is_Symbol_Char(*i))
@@ -2801,7 +2800,7 @@ void Write(Cell cell, std::ostream& str, bool display)
     str << "#<special form>";
   }
   else if (Is_Temp_Name(cell)){
-    str << "#<temp:" << Temp_Name_ID(cell) << '>';
+    str << "#<temp:" << (unsigned)Temp_Name_ID(cell) << '>';
   }
   else{
     S_ASSERT(false);
@@ -3904,8 +3903,9 @@ Cell Run_Code(Cell code, bool handle_errors)
           Cell ref = Vector_Ref(lc.code, lc.instruction_counter);
           ++lc.instruction_counter;
           S_ASSERT(Is_Pair(ref));
-          if (current_instruction == i_set_ref) // for set!, check whether the symbol is bound
+          if (current_instruction == i_set_ref) { // for set!, check whether the symbol is bound
             S_CHECK(Cdr(ref) != invalid_cell, "attempt to set undefined symbol: " + Symbol_Name(Car(ref)));
+          }
           Cdr(ref) = lc.reg;
           lc.reg = void_cell;
         } break;
@@ -3931,7 +3931,7 @@ Cell Run_Code(Cell code, bool handle_errors)
 
       case i_as_arguments: // set the top arg list to the elements of the list in reg (used by apply)
         if (lc.reg != null_cell)
-          lc.reg = Make_Vector(lc.reg);
+          lc.reg = Make_Vector_From_List(lc.reg);
         lc.arguments = Cons(lc.reg, lc.arguments);
         break;
 
